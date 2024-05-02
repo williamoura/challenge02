@@ -1,0 +1,49 @@
+trigger:
+- master
+  
+pr:
+- master
+  
+pool:
+  vmImage: 'windows-latest'
+  
+variables:
+  solution: '**/*.sln'
+  buildPlatform: 'Any CPU'
+  buildConfiguration: 'Release'
+  
+steps:
+- task: NuGetToolInstaller@1
+  
+- task: NuGetCommand@2
+  name: NugetRestore
+  inputs:
+    command: 'restore'
+    restoreSolution: '**/*.sln'
+    feedsToUse: 'select'
+    vstsFeed: 'feed-ref'
+
+- task: VSBuild@1
+  inputs:
+    solution: '$(solution)'
+    msbuildArgs: '/p:DeployOnBuild=true /p:WebPublishMethod=Package /p:PackageAsSingleFile=true /p:SkipInvalidConfigurations=true /p:PackageLocation="$(build.artifactStagingDirectory)"'
+    platform: '$(buildPlatform)'
+    configuration: '$(buildConfiguration)'
+
+- task: DotNetCoreCLI@2
+  displayName: 'Run Unit Tests'
+  inputs:
+    command: 'test'
+    projects: '**/*Tests.csproj'
+    arguments: '--no-build --configuration $(buildConfiguration) --collect "Code coverage"'
+    
+- task: PublishCodeCoverageResults@1
+  inputs:
+    codeCoverageTool: 'Cobertura'
+    summaryFileLocation: '**/coverage.cobertura.xml'
+
+- task: PublishBuildArtifacts@1
+  inputs:
+    PathtoPublish: '$(build.artifactStagingDirectory)'
+    ArtifactName: 'drop'
+    publishLocation: 'Container'
